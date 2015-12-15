@@ -1,13 +1,12 @@
 // ==UserScript==
 // @name        Hot Opinions
 // @description Quickly find hot opinions on 4chan
-// @version     1.0
+// @version     1.0.1
 // @author      dnsev
 // @namespace   dnsev
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
-// @grant       GM_setValue
-// @grant       GM_getValue
+// @grant       none
 // @homepage    https://github.com/dnsev/hotop
 // @supportURL  https://github.com/dnsev/hotop/issues
 // @updateURL   https://raw.githubusercontent.com/dnsev/hotop/master/hotop.user.js
@@ -22,7 +21,7 @@
 
 	// Enabled?
 	if (!window.MutationObserver || !document.querySelector || !document.documentElement) {
-		console.log("Browser is not modern enough to use flaggot");
+		console.log("Browser is not modern enough to use hotop");
 		return;
 	}
 
@@ -144,6 +143,7 @@
 	var node_heat_container = null;
 	var node_heat_container_inner = null;
 	var is_setup = false;
+	var scroll_range_pre = [ 0, 0 ];
 
 
 	var start_post_queue = function () {
@@ -170,6 +170,7 @@
 		}
 
 		update_heat_container_size(html_rect);
+		update_indicators_scroll();
 
 		// Continue
 		post_queue_timer = setTimeout(function () {
@@ -190,7 +191,7 @@
 
 		r = get_node_abs_rect(post, html_rect);
 
-		n = $.node("a", "hm_post_label");
+		n = $.node("a", "hm_indicator");
 		n.setAttribute("href", "#p" + id);
 		n.setAttribute("data-target", id);
 		n.style.top = r.top + "px";
@@ -464,6 +465,57 @@
 		return 0;
 	};
 
+	var update_indicators_scroll = function () {
+		var body = document.body,
+			doc_el = document.documentElement,
+			scroll_y = (window.pageYOffset || doc_el.scrollTop || 0),
+			scroll_end = scroll_y + (window.innerHeight || 0),
+			height = Math.max(body.scrollHeight || 0, body.offsetHeight || 0, doc_el.clientHeight || 0, doc_el.scrollHeight || 0, doc_el.offsetHeight || 0),
+			ii = all_posts.length,
+			i_start, i_end, i, s, e;
+
+		// Find start
+		i_start = Math.max(0, Math.min(ii - 1, Math.floor(scroll_y / height * ii)));
+		if (i_start > 0 && all_posts[i_start].rect.top > scroll_y) {
+			while (--i_start > 0 && all_posts[i_start].rect.top > scroll_y);
+		}
+		else {
+			while (++i_start < ii) {
+				if (all_posts[i_start].rect.top > scroll_y) {
+					--i_start;
+					break;
+				}
+			}
+		}
+
+		// Find end
+		for (i_end = i_start; i_end < ii; ++i_end) {
+			if (all_posts[i_end].rect.top >= scroll_end) break;
+		}
+
+		// Disable
+		s = scroll_range_pre[0];
+		e = scroll_range_pre[1];
+		if (i_start === s && i_end === s) return;
+		e = Math.min(ii, e);
+		if (s < i_start) {
+			ii = Math.min(i_start, e);
+			for (i = s; i < ii; ++i) {
+				all_posts[i].indicator.classList.remove("hm_indicator_active");
+			}
+		}
+		for (i = Math.min(all_posts.length, Math.max(i_end, s)); i < e; ++i) {
+			all_posts[i].indicator.classList.remove("hm_indicator_active");
+		}
+
+		// Enable
+		scroll_range_pre[0] = i_start;
+		scroll_range_pre[1] = i_end;
+		for (; i_start < i_end; ++i_start) {
+			all_posts[i_start].indicator.classList.add("hm_indicator_active");
+		}
+	};
+
 	var create_styles = function (s) {
 		var n = $.node_simple("style");
 		n.textContent = s;
@@ -535,6 +587,9 @@
 		update_all_post_indicators(html_rect); // not necessary unless total height has changed
 		update_heat_container_size(html_rect);
 	};
+	var on_window_scroll = function () {
+		update_indicators_scroll();
+	};
 
 	var on_indicator_click = function (event, data) {
 		if (typeof(event.which) === "number" && event.which !== 1) return;
@@ -558,8 +613,9 @@
 			".hm_container{position:fixed;top:0;right:0;bottom:0;pointer-events:none;width:4px;z-index:9002;transition:width 0.125s ease-in-out 0s;}",
 			".hm_container:hover{width:8px;}",
 			".hm_container_inner{transform-origin:0 0;width:100%;}",
-			".hm_post_label{display:block;margin:0;padding:0;position:absolute;right:0;width:100%;pointer-events:auto;cursor:pointer;transition:width 0.125s ease-in-out 0s;}",
-			".hm_post_label:hover{width:200%;z-index:1;}",
+			".hm_indicator{display:block;margin:0;padding:0;position:absolute;right:0;width:100%;pointer-events:auto;cursor:pointer;transition:width 0.125s ease-in-out 0s;}",
+			".hm_indicator.hm_indicator_active{width:150%;}",
+			".hm_indicator:hover{width:200%;z-index:1;}",
 		].join("")); //}
 
 		var n1 = $.node("div", "hm_container"),
@@ -569,6 +625,9 @@
 		$.add(document.body, n1);
 		node_heat_container = n1;
 		node_heat_container_inner = n2;
+
+		window.addEventListener("resize", on_window_resize, false);
+		window.addEventListener("scroll", on_window_scroll, false);
 	};
 
 	var init = function () {
@@ -576,10 +635,9 @@
 
 		new MutationObserver(on_body_observe).observe(document.body, { childList: true, subtree: true });
 
-		window.addEventListener("resize", on_window_resize, false);
-
 		if (post_queue.length > 0) {
 			start_post_queue();
+			setTimeout(function () { on_window_resize(); }, 1000);
 		}
 	};
 
