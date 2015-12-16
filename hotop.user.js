@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Hot Opinions
 // @description Quickly find hot opinions on 4chan
-// @version     1.0.1
+// @version     1.0.2
 // @author      dnsev
 // @namespace   dnsev
 // @include     http://boards.4chan.org/*
@@ -209,6 +209,7 @@
 			post: post,
 			rect: r,
 			indicator: n,
+			color: null,
 			replies: 0
 		};
 
@@ -257,12 +258,14 @@
 	};
 	var update_post_heat = function (post_data) {
 		var replies = post_data.replies,
-			hue = hue_range[0] + (hue_range[1] - hue_range[0]) * Math.min(1, replies * hue_range_per_reply);
+			hue = hue_range[0] + (hue_range[1] - hue_range[0]) * Math.min(1, replies * hue_range_per_reply),
+			color = color_to_hex(hsv_to_rgb(hue, 1, 1));
 
 		if (hue < 1.0) hue += 1.0;
 
+		post_data.color = color;
 		post_data.indicator.setAttribute("data-replies", replies);
-		post_data.indicator.style.backgroundColor = color_to_hex(hsv_to_rgb(hue, 1, 1));
+		post_data.indicator.style.backgroundColor = color;
 		post_data.indicator.setAttribute("title", "Replies: " + replies);
 	};
 	var update_quotelinks = function (post) {
@@ -516,6 +519,28 @@
 		}
 	};
 
+	var get_computed_style = function (node) {
+		try {
+			return document.defaultView.getComputedStyle(node);
+		}
+		catch (e) {}
+		return node.style;
+	};
+	var set_highlight_count = function (node, add) {
+		var a = "data-hm-highlight-count",
+			v = parseInt(node.getAttribute(a) || "", 10) || 0;
+
+		v += add;
+		if (v > 0) {
+			node.setAttribute(a, v);
+		}
+		else {
+			node.removeAttribute(a);
+			v = 0;
+		}
+		return v;
+	};
+
 	var create_styles = function (s) {
 		var n = $.node_simple("style");
 		n.textContent = s;
@@ -594,10 +619,26 @@
 	var on_indicator_click = function (event, data) {
 		if (typeof(event.which) === "number" && event.which !== 1) return;
 
-		var r = data.post.getBoundingClientRect();
-		window.scrollBy(0, r.top - get_header_height());
+		var n = data.post,
+			r = n.getBoundingClientRect(),
+			win_height = window.innerHeight || 0,
+			n2;
 
-		// window.location = "#p" + data.id;
+		window.scrollBy(0, r.top - get_header_height() - Math.max(0, (win_height - r.height) / 2.0));
+
+		if ((n2 = $(".post", n)) !== null && n2.parentNode === n) {
+			n = n2;
+		}
+
+		set_highlight_count(n, 1);
+		n.style.setProperty("box-shadow", "0 0 0.5em 1em " + data.color, "important");
+		n.style.setProperty("z-index", "1", "important");
+		n.style.setProperty("transition", "none", "important");
+		get_computed_style(n).getPropertyValue("background-color");
+		n.style.setProperty("transition", "");
+		n.style.setProperty("box-shadow", "");
+		n.style.setProperty("z-index", "");
+		setTimeout(function () { set_highlight_count(n, -1); }, 1000);
 
 		event.preventDefault();
 		event.stopPropagation();
@@ -616,6 +657,7 @@
 			".hm_indicator{display:block;margin:0;padding:0;position:absolute;right:0;width:100%;pointer-events:auto;cursor:pointer;transition:width 0.125s ease-in-out 0s;}",
 			".hm_indicator.hm_indicator_active{width:150%;}",
 			".hm_indicator:hover{width:200%;z-index:1;}",
+			"div[data-hm-highlight-count]{position:relative;transition:box-shadow 1s ease-in 0s,z-index 1s linear 0s;}",
 		].join("")); //}
 
 		var n1 = $.node("div", "hm_container"),
