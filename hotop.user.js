@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Hot Opinions
 // @description Quickly find hot opinions on 4chan
-// @version     1.0.2
+// @version     1.0.3
 // @author      dnsev
 // @namespace   dnsev
 // @include     http://boards.4chan.org/*
@@ -146,6 +146,15 @@
 	var scroll_range_pre = [ 0, 0 ];
 
 
+	var get_most_recent_visible_post = function () {
+		for (var i = all_posts.length - 1; i >= 0; --i) {
+			if (all_posts[i].rect.height > 1.0e-5) {
+				return all_posts[i];
+			}
+		}
+		return null;
+	};
+
 	var start_post_queue = function () {
 		if (post_queue_timer !== null) return;
 
@@ -199,8 +208,8 @@
 		n.addEventListener("click", function (event) { return on_indicator_click(event, data); }, false);
 		$.add(node_heat_container_inner, n);
 
-		if (all_posts.length > 0) {
-			d = all_posts[all_posts.length - 1];
+		d = get_most_recent_visible_post();
+		if (d !== null) {
 			d.indicator.style.height = (r.top - d.rect.top) + "px";
 		}
 
