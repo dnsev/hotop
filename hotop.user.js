@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name        Hot Opinions
 // @description Quickly find hot opinions on 4chan
-// @version     1.0.3
+// @version     1.0.4
 // @author      dnsev
 // @namespace   dnsev
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
+// @include     http://boards.4channel.org/*
+// @include     https://boards.4channel.org/*
 // @grant       none
 // @homepage    https://github.com/dnsev/hotop
 // @supportURL  https://github.com/dnsev/hotop/issues
