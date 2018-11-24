@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Hot Opinions
 // @description Quickly find hot opinions on 4chan
-// @version     1.0.4
+// @version     1.0.5
 // @author      dnsev
 // @namespace   dnsev
 // @include     http://boards.4chan.org/*
@@ -157,6 +157,10 @@
 		return null;
 	};
 
+	var post_is_hidden = function (post) {
+		return get_computed_style(post).display === "none";
+	};
+
 	var start_post_queue = function () {
 		if (post_queue_timer !== null) return;
 
@@ -226,6 +230,8 @@
 
 		all_posts.push(data);
 		all_posts_map[id] = data;
+
+		observe_post_visibility(post, data);
 
 		update_quotelinks(post);
 		update_post_heat(data);
@@ -302,6 +308,46 @@
 			}
 		}
 	};
+
+	var observe_post_visibility = (function () {
+		var update_timer = null;
+
+		var update_indicators = function () {
+			on_window_resize();
+		};
+
+		var delayed_update_indicators = function () {
+			if (update_timer !== null) {
+				clearTimeout(update_timer);
+			}
+
+			update_timer = setTimeout(function () {
+				update_timer = null;
+				update_indicators();
+			}, 1);
+		};
+
+		return function (post, data) {
+			var is_hidden = false;
+
+			var on_observe = function () {
+				var is_hidden_new = post_is_hidden(post);
+				if (is_hidden_new === is_hidden) { return; }
+				is_hidden = is_hidden_new;
+				data.indicator.style.display = (is_hidden ? "none" : "");
+				delayed_update_indicators();
+			};
+
+			on_observe();
+
+			new MutationObserver(on_observe).observe(post, {
+				childList: false,
+				subtree: false,
+				attributes: true,
+				attributeFilter: [ "hidden", "style", "class" ]
+			});
+		};
+	})();
 
 	var process_removed_posts = function (posts) {
 		var update = false,
